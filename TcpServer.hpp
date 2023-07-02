@@ -28,7 +28,7 @@ private:
     TcpServer(const TcpServer & s){}
 
 public:
-    static TcpServer* GetInstance(int port = PORT)
+    static TcpServer* GetInstance(int port = PORT)//单例模式
     {
         static pthread_mutex_t mtx_svr = PTHREAD_MUTEX_INITIALIZER;
         if(svr == nullptr)
@@ -54,20 +54,23 @@ public:
 public:
     void InitServer()
     {
-        Socket();
-        Bind();
-        Listen();
+        Socket();//创建监听套接字
+        Bind();//绑定套接字
+        Listen();//监听
 
     }
     void Socket()
     {
-        _listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+        _listen_sock = socket(AF_INET, SOCK_STREAM, 0);//创建套接字
         if(_listen_sock < 0)
         {
             exit(1);
         }
 
-        //socket地址复用，不等待端口
+        //在TCP连接中，先退出的一方会维持一段时间的TIME_WAIT状态，该状态下的套接字不会立即释放它所申请的资源
+        //只有过了2MSL时间，才会释放资源，比如释放端口号，fd等，则这段时间内，一些系统资源是不能使用的
+        //socket地址复用，不等待TIME_WAIT状态退出，强制忽略该状态，使用相应的系统资源
+        //则_listen_sock，不在需要等待TIME_WAIT状态，本质是允许一个端口号绑定多个进程
         int opt = 1;
         setsockopt(_listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
 
@@ -76,9 +79,9 @@ public:
     {
         struct sockaddr_in local;
         memset(&local, 0, sizeof local);
-        local.sin_family = AF_INET;
-        local.sin_port = htons(_port);
-        local.sin_addr.s_addr = INADDR_ANY;
+        local.sin_family = AF_INET;//协议类型
+        local.sin_port = htons(_port);//端口号
+        local.sin_addr.s_addr = INADDR_ANY;//IP
         if(bind(_listen_sock, (struct sockaddr*)&local, sizeof local) < 0)
         {
             exit(2);
