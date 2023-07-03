@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #include "Util.hpp"
 #include "Log.hpp"
@@ -14,10 +15,16 @@
 class HttpRequest
 {
 public:
+    // 请求
     std::string request_line;
     std::vector<std::string> request_header;
     std::string blank;
     std::string request_body;
+
+    // 解析结果
+    std::string method; // 请求方法
+    std::string uri; // 请求资源
+    std::string version; // HTTP协议版本
 };
 //Http响应
 class HttpResponse
@@ -44,9 +51,13 @@ public:
 public:
     void RcvHttpRequest() //读取请求
     {
+        RecvHttpRequestLine(); // 读取请求行
+        RecvHttpRequestHeader(); // 读取请求报头
+        //正文
     }
     void ParseHttpRequest() //解析请求
     {
+        ParseHttpRequestLine(); // 解析请求行
     }
     void BulidHttpResponse() //构建响应
     {
@@ -58,12 +69,42 @@ public:
 private:
     void RecvHttpRequestLine()
     {
-        //报头
+        //请求行
         Util::ReadLine(_sock, _http_request.request_line);
+        _http_request.request_line.resize(_http_request.request_line.size() - 1);
+
+        LOG(DEBUG, _http_request.request_line);
     }
     void RecvHttpRequestHeader()
     {
-        //数据段
+        //请求报头
+        std::string line;
+        while ("\n" != line)
+        {
+            line.clear();//清空
+            Util::ReadLine(_sock, line);
+            if("\n" == line)
+            {
+                _http_request.blank = line;
+                break;
+            }
+
+            line.resize(line.size() - 1); //不需要最后一个'\n'
+            _http_request.request_header.push_back(line);
+
+            LOG(DEBUG, line);
+        }
+
+    }
+    void ParseHttpRequestLine()
+    {
+        auto &line = _http_request.request_line;
+        std::stringstream ss(line); // 流提取
+        ss >> _http_request.method >> _http_request.uri >> _http_request.version;
+
+        LOG(INFO, _http_request.method);
+        LOG(INFO, _http_request.uri);
+        LOG(INFO, _http_request.version);
     }
 
 private:
