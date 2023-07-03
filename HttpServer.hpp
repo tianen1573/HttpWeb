@@ -6,6 +6,7 @@
 
 #include "TcpServer.hpp"
 #include "Protocol.hpp"
+#include "Log.hpp"
 
 #define PORT 8081
 
@@ -28,6 +29,7 @@ public:
     }
     void Loop()
     {
+        LOG(INFO, "Loop begin ...");
         int listen_sock = _tcp_server->GetSock();
         while (!stop)
         {
@@ -39,6 +41,7 @@ public:
                 continue;
             }
 
+            LOG(INFO, "Get a new link.");
             int * psock = new int(sock);
             pthread_t tid;
             pthread_create(&tid, nullptr, Entrance::HandlerRequest, psock);//创建线程

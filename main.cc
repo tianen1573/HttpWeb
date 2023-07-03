@@ -2,6 +2,7 @@
 #include <cstring>
 #include <memory>
 #include "HttpServer.hpp"
+#include "Log.hpp"
 
 static void Usage(std::string proc)
 {
@@ -10,6 +11,9 @@ static void Usage(std::string proc)
 
 int main(int argc, char * argv[])
 {
+
+    // LOG(DEBUG, "dubug Log.hpp");
+
     if(argc != 2)
     {
         Usage(argv[0]);

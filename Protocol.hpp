@@ -8,6 +8,7 @@
 #include <string>
 
 #include "Util.hpp"
+#include "Log.hpp"
 
 //Http请求
 class HttpRequest
@@ -57,11 +58,12 @@ public:
 private:
     void RecvHttpRequestLine()
     {
+        //报头
         Util::ReadLine(_sock, _http_request.request_line);
     }
     void RecvHttpRequestHeader()
     {
-        
+        //数据段
     }
 
 private:
@@ -76,6 +78,7 @@ class Entrance
 public:
     static void *HandlerRequest(void *psock)
     {
+        LOG(INFO, "Hander Request begin ...");
         int sock = *(int *)psock;
         delete (int *)psock;
 
@@ -103,6 +106,7 @@ public:
         // std::cout << line << std::endl;
 
         // close(sock);
+        LOG(INFO, "Hander Request end.");
         return nullptr;
     }
 };

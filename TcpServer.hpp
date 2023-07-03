@@ -14,6 +14,8 @@
 
 #include <cstring>
 
+#include "Log.hpp"
+
 #define BACKLOG 5
 
 class TcpServer
@@ -48,6 +50,10 @@ public:
 
     ~TcpServer()
     {
+        if(_listen_sock >= 0)
+        {
+            close(_listen_sock);
+        }
     }
 
 public:
@@ -56,6 +62,8 @@ public:
         Socket();//创建监听套接字
         Bind();//绑定套接字
         Listen();//监听
+        LOG(INFO, "init ... success.");
+
 
     }
     void Socket()
@@ -63,6 +71,7 @@ public:
         _listen_sock = socket(AF_INET, SOCK_STREAM, 0);//创建套接字
         if(_listen_sock < 0)
         {
+            LOG(FATAL, "create socket error!");
             exit(1);
         }
 
@@ -72,7 +81,7 @@ public:
         //则_listen_sock，不在需要等待TIME_WAIT状态，本质是允许一个端口号绑定多个进程
         int opt = 1;
         setsockopt(_listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
-
+        LOG(INFO, "create socket ... success.");
     }
     void Bind()
     {
@@ -83,15 +92,19 @@ public:
         local.sin_addr.s_addr = INADDR_ANY;//IP
         if(bind(_listen_sock, (struct sockaddr*)&local, sizeof local) < 0)
         {
+            LOG(FATAL, "bind error!");
             exit(2);
         }
+        LOG(INFO, "bind socket ... success.");
     }
     void Listen()
     {
         if(listen(_listen_sock, BACKLOG) < 0)
         {
+            LOG(FATAL, "listen socket error!");
             exit(3);
         }
+        LOG(INFO, "listen socket ... success.");
     }
 
     int GetSock()
