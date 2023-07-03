@@ -116,6 +116,7 @@ public:
         }
 
     END:
+        ;
     }
     void SendHttpResponse() //发送响应
     {
@@ -160,7 +161,7 @@ private:
             char ch = 0;
             while (content_length)
             {
-                ssize_t s = recv(sock, &ch, 1, 0);
+                ssize_t s = recv(_sock, &ch, 1, 0);
                 if (s > 0)
                 {
                     body.push_back(ch);
@@ -195,7 +196,7 @@ private:
         //解析请求报头
         std::string key, value;
 
-        for (auto &str ： _http_request.request_header)
+        for (auto &str : _http_request.request_header)
         {
             if (Util::CutString(str, key, value, SEP))
             {
@@ -213,7 +214,7 @@ private:
             auto iter = header_kv.find("Content-Length");
             if (iter != header_kv.end())
             {
-                _http_request.content_length = std::stoi(iter.second);
+                _http_request.content_length = std::stoi(iter->second);
                 return true;
             }
         }
