@@ -50,15 +50,15 @@ public:
 
         return out.size();
     }
-    static bool CutString(const std::string &target, std::string &key_out, std::string &value_out, const std::string sep)
+    static bool CutString(const std::string &target, std::string &sub1_out, std::string &sub2_out, const std::string sep)
     {
         //切分字符串
 
         size_t pos = target.find(sep);
         if(pos != std::string::npos)
         {
-            key_out = target.substr(0, pos); // [0,pos)
-            value_out = target.substr(pos + sep.size()); // [pos + 2, npos)
+            sub1_out = target.substr(0, pos); // [0,pos)
+            sub2_out = target.substr(pos + sep.size()); // [pos + 2, npos)
             return true;
         }
         return false;

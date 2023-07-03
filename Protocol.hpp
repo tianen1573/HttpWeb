@@ -13,6 +13,10 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
+#define SEP ": "
+#define OK 200
+#define NOT_FOUND 404
+
 //Http请求
 class HttpRequest
 {
@@ -25,14 +29,14 @@ public:
 
     // 解析结果
     std::string method;  // 请求方法
-    std::string uri;     // 请求资源
+    std::string uri;     // 请求资源 path?args
     std::string version; // HTTP协议版本
 
-    std::unordered_map<std::string, std::string> header_kv;
-
     // 其他数据
+    std::unordered_map<std::string, std::string> header_kv;
     int content_length;
-
+    std::string path;
+    std::string query_string;
 public:
     HttpRequest()
         : content_length(0)
@@ -50,6 +54,17 @@ public:
     std::vector<std::string> responce_header;
     std::string blank;
     std::string responce_body;
+
+    int status_code;
+
+public:
+    HttpResponse()
+        : status_code(0)
+    {
+    }
+    ~HttpResponse()
+    {
+    }
 };
 
 //读取请求，分析请求，构建响应
@@ -70,15 +85,37 @@ public:
     {
         RecvHttpRequestLine();   // 读取请求行
         RecvHttpRequestHeader(); // 读取请求报头
-        RecvHttpRequestBody(); // 读取正文
+        RecvHttpRequestBody();   // 读取正文
     }
-    void ParseHttpRequest() //解析请求
+    void ParseHttpRequest() // 解析请求
     {
         ParseHttpRequestLine();   // 解析请求行
         ParseHttpRequestHeader(); // 解析请求报头
     }
     void BulidHttpResponse() //构建响应
     {
+        auto &code = _http_responce.status_code;
+        if ("GET" != _http_request.method && "POST" != _http_request.method)
+        {
+            // 非法请求
+            LOG(WARNING, "method is not right!");
+            code = NOT_FOUND;
+            goto END;
+        }
+        if("GET" == _http_request.method)
+        {
+            ssize_t pos  = _http_request.uri.find('?');
+            if(pos != std::string::npos)
+            {
+                Util::CutString(_http_request.uri, _http_request.path, _http_request.query_string, "?");
+            }
+            else
+            {
+                _http_request.path = _http_request.uri;
+            }
+        }
+
+    END:
     }
     void SendHttpResponse() //发送响应
     {
@@ -115,24 +152,24 @@ private:
     }
     void RecvHttpRequestBody()
     {
-        if(IsNeedRecvHttpRequestBody())
+        if (IsNeedRecvHttpRequestBody())
         {
             int content_length = _http_request.content_length;
             auto &body = _http_request.request_body;
-            
+
             char ch = 0;
-            while(content_length)
+            while (content_length)
             {
                 ssize_t s = recv(sock, &ch, 1, 0);
-                if(s > 0)
+                if (s > 0)
                 {
                     body.push_back(ch);
-                    -- content_length;
+                    --content_length;
                 }
-                else if(s == 0)
+                else if (s == 0)
                 {
                     break;
-                } 
+                }
                 else
                 {
                     LOG(ERROR, "recv error!");
@@ -141,7 +178,7 @@ private:
             }
         }
     }
-    
+
     void ParseHttpRequestLine()
     {
         //解析请求行
@@ -166,15 +203,15 @@ private:
             }
         }
     }
-    
+
     bool IsNeedRecvHttpRequestBody()
     {
         auto &method = _http_request.method;
-        if("POST" == method)
+        if ("POST" == method)
         {
             auto &header_kv = _http_request.header_kv;
             auto iter = header_kv.find("Content-Length");
-            if(iter != header_kv.end())
+            if (iter != header_kv.end())
             {
                 _http_request.content_length = std::stoi(iter.second);
                 return true;
@@ -188,8 +225,6 @@ private:
     int _sock;
     HttpRequest _http_request;
     HttpResponse _http_responce;
-
-    const std::string SEP = ": ";
 };
 
 //HttpServer 处理请求类
@@ -209,7 +244,7 @@ public:
         recv(sock, buffer, sizeof(buffer), 0);
         std::cout << "----------------------begin--------------------------" << std::endl;
         std::cout << buffer << std::endl;
-        std::cout << "----------------------end--------------------------" << std::endl;
+        std::cout << "----------------------end--------------------------\n" << std::endl;
 #else
         EndPoint *ep = new EndPoint(sock);
         ep->RcvHttpRequest();
