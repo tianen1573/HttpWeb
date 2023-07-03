@@ -14,13 +14,12 @@
 
 #include <cstring>
 
-#define PORT 8081
 #define BACKLOG 5
 
 class TcpServer
 {
 private:
-    TcpServer(uint16_t port = PORT)
+    TcpServer(uint16_t port)
         : _port(port)
         , _listen_sock(-1)
     {
@@ -28,7 +27,7 @@ private:
     TcpServer(const TcpServer & s){}
 
 public:
-    static TcpServer* GetInstance(int port = PORT)//单例模式
+    static TcpServer* GetInstance(int port)//单例模式
     {
         static pthread_mutex_t mtx_svr = PTHREAD_MUTEX_INITIALIZER;
         if(svr == nullptr)
@@ -93,6 +92,11 @@ public:
         {
             exit(3);
         }
+    }
+
+    int GetSock()
+    {
+        return _listen_sock;
     }
 
 private:
