@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <vector>
+#include <map>
+#include <unordered_map>
 #include <string>
 #include <sstream>
 
@@ -22,9 +24,23 @@ public:
     std::string request_body;
 
     // 解析结果
-    std::string method; // 请求方法
-    std::string uri; // 请求资源
+    std::string method;  // 请求方法
+    std::string uri;     // 请求资源
     std::string version; // HTTP协议版本
+
+    std::unordered_map<std::string, std::string> header_kv;
+
+    // 其他数据
+    int content_length;
+
+public:
+    HttpRequest()
+        : content_length(0)
+    {
+    }
+    ~HttpRequest()
+    {
+    }
 };
 //Http响应
 class HttpResponse
@@ -46,18 +62,20 @@ public:
     }
     ~EndPoint()
     {
+        close(_sock);
     }
 
 public:
     void RcvHttpRequest() //读取请求
     {
-        RecvHttpRequestLine(); // 读取请求行
+        RecvHttpRequestLine();   // 读取请求行
         RecvHttpRequestHeader(); // 读取请求报头
-        //正文
+        RecvHttpRequestBody(); // 读取正文
     }
     void ParseHttpRequest() //解析请求
     {
-        ParseHttpRequestLine(); // 解析请求行
+        ParseHttpRequestLine();   // 解析请求行
+        ParseHttpRequestHeader(); // 解析请求报头
     }
     void BulidHttpResponse() //构建响应
     {
@@ -81,9 +99,9 @@ private:
         std::string line;
         while ("\n" != line)
         {
-            line.clear();//清空
+            line.clear(); //清空
             Util::ReadLine(_sock, line);
-            if("\n" == line)
+            if ("\n" == line)
             {
                 _http_request.blank = line;
                 break;
@@ -94,10 +112,39 @@ private:
 
             LOG(DEBUG, line);
         }
-
     }
+    void RecvHttpRequestBody()
+    {
+        if(IsNeedRecvHttpRequestBody())
+        {
+            int content_length = _http_request.content_length;
+            auto &body = _http_request.request_body;
+            
+            char ch = 0;
+            while(content_length)
+            {
+                ssize_t s = recv(sock, &ch, 1, 0);
+                if(s > 0)
+                {
+                    body.push_back(ch);
+                    -- content_length;
+                }
+                else if(s == 0)
+                {
+                    break;
+                } 
+                else
+                {
+                    LOG(ERROR, "recv error!");
+                    break;
+                }
+            }
+        }
+    }
+    
     void ParseHttpRequestLine()
     {
+        //解析请求行
         auto &line = _http_request.request_line;
         std::stringstream ss(line); // 流提取
         ss >> _http_request.method >> _http_request.uri >> _http_request.version;
@@ -106,11 +153,43 @@ private:
         LOG(INFO, _http_request.uri);
         LOG(INFO, _http_request.version);
     }
+    void ParseHttpRequestHeader()
+    {
+        //解析请求报头
+        std::string key, value;
+
+        for (auto &str ： _http_request.request_header)
+        {
+            if (Util::CutString(str, key, value, SEP))
+            {
+                _http_request.header_kv.insert({key, value});
+            }
+        }
+    }
+    
+    bool IsNeedRecvHttpRequestBody()
+    {
+        auto &method = _http_request.method;
+        if("POST" == method)
+        {
+            auto &header_kv = _http_request.header_kv;
+            auto iter = header_kv.find("Content-Length");
+            if(iter != header_kv.end())
+            {
+                _http_request.content_length = std::stoi(iter.second);
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 private:
     int _sock;
     HttpRequest _http_request;
     HttpResponse _http_responce;
+
+    const std::string SEP = ": ";
 };
 
 //HttpServer 处理请求类
