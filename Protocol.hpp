@@ -270,7 +270,9 @@ private:
             line.resize(line.size() - 1); //不需要最后一个'\n'
             _http_request.request_header.push_back(line);
 
+#ifdef DEBUG
             LOG(DEBUG, line);
+#endif
         }
     }
     void RecvHttpRequestBody()
