@@ -11,19 +11,16 @@ static void Usage(std::string proc)
 
 int main(int argc, char * argv[])
 {
-
-    // LOG(DEBUG, "dubug Log.hpp");
-
     if(argc != 2)
     {
         Usage(argv[0]);
         exit(4);
     }
-
     int port = atoi(argv[1]);
     
-    std::shared_ptr<HttpServer> http_server(new HttpServer(port));//RAII
+    std::shared_ptr<HttpServer> http_server(new HttpServer(port));// RAII
 
+    // 启动服务器
     http_server->InitServer();
     http_server->Loop();
 

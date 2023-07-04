@@ -34,13 +34,14 @@ public:
         while (!stop)
         {
             struct sockaddr_in peer;
-            socklen_t len = sizeof peer;
+            socklen_t len = sizeof peer;// 发送方数据
             int sock = accept(listen_sock, (struct sockaddr*)&peer, &len);
             if(sock < 0)
             {
                 continue;
             }
 
+            //多线程处理
             LOG(INFO, "Get a new link.");
             int * psock = new int(sock);
             pthread_t tid;
@@ -52,7 +53,6 @@ public:
 
 private:
     int _port;
-    TcpServer *_tcp_server;
-
+    TcpServer *_tcp_server;// 单例模式
     bool stop;
 };

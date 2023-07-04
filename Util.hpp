@@ -12,6 +12,7 @@ class Util
 public:
     static int ReadLine(int sock, std::string &out)
     {
+        //处理不同格式的 行结尾
         char ch = 'X';
         while (ch != '\n')
         {
@@ -40,7 +41,7 @@ public:
             }
             else if (s == 0)
             {
-
+                break;
             }
             else
             {
@@ -53,7 +54,6 @@ public:
     static bool CutString(const std::string &target, std::string &sub1_out, std::string &sub2_out, const std::string sep)
     {
         //切分字符串
-
         size_t pos = target.find(sep);
         if(pos != std::string::npos)
         {

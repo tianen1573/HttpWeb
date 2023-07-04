@@ -83,7 +83,7 @@ public:
     std::string responce_body;
 
     int status_code;
-    int src_fd; //资源fd
+    int src_fd;   //资源fd
     int src_size; //资源大小
 public:
     HttpResponse()
@@ -122,9 +122,12 @@ public:
     }
     void BulidHttpResponse() //构建响应
     {
+        //判断请求方式
+        //判断资源路径合法性
+        //判断处理方式
 
-        struct stat st; //写网页挺重要
-        int src_size = 0;
+        struct stat st;   //写网页挺重要
+        int src_size = 0; //资源文件大小
 
         auto &code = _http_responce.status_code;
         code = OK; //默认为OK
@@ -141,7 +144,7 @@ public:
             ssize_t pos = _http_request.uri.find('?');
             if (pos != std::string::npos)
             {
-                //带参
+                //带参 -- 切割URI
                 Util::CutString(_http_request.uri, _http_request.path, _http_request.query_string, "?");
                 _http_request.cgi = true;
             }
@@ -172,6 +175,7 @@ public:
         {
             _http_request.path += HOME_PAGE;
         }
+
         //2. 判断资源是否合法
         // struct stat st;  //-- 写在goto前 //写网页挺重要
         // int src_size = 0; //-- 写在goto前
@@ -182,12 +186,13 @@ public:
             //判断路径是否是目录
             if (S_ISDIR(st.st_mode))
             {
-                //b. 是目录
+                //b. 是目录 -- 访问目录下的默认网页
                 _http_request.path += "/";
                 _http_request.path += HOME_PAGE;
-                stat(_http_request.path.c_str(), &st); // 更新st
+                stat(_http_request.path.c_str(), &st); // 更新st -- 资源发生变化
             }
-            //判断资源是否是可执行文件
+
+            //判断资源是否是可执行文件 -- CGI机制
             //man 2 stat
             if ((st.st_mode & S_IXUSR) || (st.st_mode & S_IXGRP) || (st.st_mode & S_IXOTH))
             {
@@ -214,7 +219,7 @@ public:
         }
         else
         {
-            //简单返回 静态网页
+            //简单返回 静态资源
             code = ProcessNonCgi(src_size);
         }
 
@@ -245,9 +250,9 @@ public:
 private:
     void RecvHttpRequestLine()
     {
-        //请求行
+        //状态行
         Util::ReadLine(_sock, _http_request.request_line);
-        _http_request.request_line.resize(_http_request.request_line.size() - 1);
+        _http_request.request_line.resize(_http_request.request_line.size() - 1); //去除 行结尾标志
 
 #ifdef DEBUG
         LOG(DEBUG, _http_request.request_line);
@@ -257,7 +262,7 @@ private:
     {
         //请求报头
         std::string line;
-        while ("\n" != line)
+        while ("\n" != line) // 循环读取
         {
             line.clear(); //清空
             Util::ReadLine(_sock, line);
@@ -267,7 +272,7 @@ private:
                 break;
             }
 
-            line.resize(line.size() - 1); //不需要最后一个'\n'
+            line.resize(line.size() - 1); //去除行结尾标志 '\n'
             _http_request.request_header.push_back(line);
 
 #ifdef DEBUG
@@ -277,6 +282,7 @@ private:
     }
     void RecvHttpRequestBody()
     {
+
         if (IsNeedRecvHttpRequestBody())
         {
             int content_length = _http_request.content_length;
@@ -291,7 +297,7 @@ private:
                     body.push_back(ch);
                     --content_length;
                 }
-                else if (s == 0)
+                else if (s == 0) //对端关闭
                 {
                     break;
                 }
@@ -319,7 +325,7 @@ private:
         LOG(DEBUG, _http_request.method);
         LOG(DEBUG, _http_request.uri);
         LOG(DEBUG, _http_request.version);
-#endif 
+#endif
     }
     void ParseHttpRequestHeader()
     {
@@ -337,6 +343,8 @@ private:
 
     bool IsNeedRecvHttpRequestBody()
     {
+        //POST后续 需要读取正文
+        //而GET的正文会在URI中一同传递
         auto &method = _http_request.method;
         if ("POST" == method)
         {
@@ -353,11 +361,12 @@ private:
     }
     int ProcessNonCgi(int src_size)
     {
-        //预处理正文 -- 打开静态网页文件
+        //预处理正文 -- 打开静态资源文件
         _http_responce.src_fd = open(_http_request.path.c_str(), O_RDONLY);
+
         if (_http_responce.src_fd >= 0)
         {
-            // 处理状态行
+            // 构建状态行
             _http_responce.responce_line = HTTP_VERSION;
             _http_responce.responce_line += " ";
             _http_responce.responce_line += std::to_string(_http_responce.status_code);
@@ -369,21 +378,21 @@ private:
             LOG(DEBUG, _http_responce.responce_line);
 #endif
 
-            // 处理响应报头
+            // 构建响应报头
+            // todo...
 
-            // 处理空行 -- 已处理
+            // 构建空行 -- 已处理
 
-            //读取正文
-            //opne, sendfile
-            _http_responce.src_size = src_size;//正文大小
+            //构建正文
+            //opne, sendfile -- 使用sendfile实现 数据不读取直接发送至网卡+sock， 没有中间商赚差价
+            _http_responce.src_size = src_size; //正文大小
             return OK;
         }
         else
         {
             LOG(INFO, "scr_file open error!");
+            return NOT_FOUND;
         }
-
-        return NOT_FOUND;
     }
     int ProcessCgi()
     {
@@ -405,15 +414,17 @@ public:
         int sock = *(int *)psock;
         delete (int *)psock;
 
-        std::cout << "get a new link... : " << sock << std::endl;
+        std::cout << "get a new link ... : " << sock << std::endl;
 
 #ifdef DEBUG
         char buffer[4096];
         recv(sock, buffer, sizeof(buffer), 0);
         std::cout << "----------------------begin--------------------------" << std::endl;
         std::cout << buffer << std::endl;
-        std::cout << "----------------------end--------------------------\n" << std::endl;
+        std::cout << "----------------------end--------------------------\n"
+                  << std::endl;
 #else
+        //一次HTTP通信
         EndPoint *ep = new EndPoint(sock);
         ep->RcvHttpRequest();
         ep->ParseHttpRequest();
