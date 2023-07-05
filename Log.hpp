@@ -26,7 +26,7 @@ const char *const levalStr[] = {
 
 void Log(std::string leval, std::string message, std::string file_name, int line)
 {
-    std::cout << "[" << leval << "]"
+    std::cerr << "[" << leval << "]"
               << "[" << time(nullptr) << "]"
               << "[" << message << "]"
               << "[" << file_name << "___" << line << "]" << std::endl;

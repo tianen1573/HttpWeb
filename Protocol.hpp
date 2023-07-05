@@ -3,6 +3,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
@@ -52,7 +53,7 @@ static std::string Suffix2Desc(const std::string &suffix)
     };
 
     auto iter = suffix_kv.find(suffix);
-    if(iter != suffix_kv.end())
+    if (iter != suffix_kv.end())
     {
         return iter->second;
     }
@@ -132,12 +133,14 @@ public:
     {
         RecvHttpRequestLine();   // 读取请求行
         RecvHttpRequestHeader(); // 读取请求报头
-        RecvHttpRequestBody();   // 读取正文
+        //读取正文 在 解析报头之后
     }
     void ParseHttpRequest() // 解析请求
     {
         ParseHttpRequestLine();   // 解析请求行
         ParseHttpRequestHeader(); // 解析请求报头
+        RecvHttpRequestBody();   // 读取正文
+
     }
     void BulidHttpResponse() //构建响应
     {
@@ -176,6 +179,7 @@ public:
         }
         else if ("POST" == _http_request.method)
         {
+            _http_request.path = _http_request.uri;
             _http_request.cgi = true;
         }
         else
@@ -245,7 +249,7 @@ public:
         if (_http_request.cgi)
         {
             // post/get+带参，可执行文件
-            ProcessCgi();
+            code = ProcessCgi();
         }
         else
         {
@@ -391,6 +395,8 @@ private:
     }
     int ProcessNonCgi(int src_size)
     {
+        LOG(INFO, "Non Cgi...");
+
         //预处理正文 -- 打开静态资源文件
         _http_responce.src_fd = open(_http_request.path.c_str(), O_RDONLY);
 
@@ -418,7 +424,7 @@ private:
             header_line += std::to_string(src_size);
             header_line += LINE_END;
             _http_responce.responce_header.push_back(header_line);
-            
+
             // 构建空行
             // 已处理
 
@@ -436,6 +442,120 @@ private:
     }
     int ProcessCgi()
     {
+        LOG(INFO, "Cgi...");
+
+        //1. 如何执行指定进程
+        //使用进程替换，进行CGI机制
+        //当前线程是httpserver线程下的子进程，若直接在该线程下替换，则整个进程都会发生进程替换，服务器就会终止
+        //所以，需要先创建一个子进程，使子进程进行进程替换
+        //2. 父子进程如何通信， 即子进程如何获取参数，父进程如何获取结果
+        //匿名管道，两套
+        //3. 子进程获取参数
+        //匿名管道
+        //环境变量
+        //此时子进程获取参数的方法不止一个，所以还需要获取 如何获取参数
+        //环境变量
+
+        auto &query_string = _http_request.query_string; // GET
+        auto &body_text = _http_request.request_body;    // POST
+        auto &method = _http_request.method;
+        auto &bin = _http_request.path; //exe路径
+
+        std::string query_string_env; //GET传参时需要的环境变量
+        std::string method_env;
+
+        //站在父进程角度创建两个匿名管道
+        int input[2];
+        int output[2];
+        if (pipe(input) < 0) //创建失败
+        {
+            LOG(ERROR, "pipe input error!");
+            return NOT_FOUND;
+        }
+        if (pipe(output) < 0)
+        {
+            LOG(ERROR, "pipe output error!");
+            return NOT_FOUND;
+        }
+
+        pid_t pid = fork();
+        if (pid == 0) //子进程
+        {
+            //关闭不需要的权限
+            close(input[0]);
+            close(output[1]);
+
+            //进程替换只会替换代码+数据，不会新建PCB，会保留原先的系统资源
+            //但进程地址空间的数据，比如局部变量，全局变量，会消失
+            //所以我们约定，替换后的进程，读取管道等价于读取标准输入0，写入管道，等价于写到标准输出
+            //即替换之前，对子进程进行重定向
+            // input[1]: 子进程写入， 子进程 写到1 --》 子进程写到 input[1];
+            // output[0]：子进程读取，子进程 读取0 --》 子进程读取 output[0];
+            dup2(input[1], 1); //本来fd1执行标准输出，现在指向input[1]
+            dup2(output[0], 0);
+            //之后的测试输出都需要更改cout->cerr
+
+            //确定获取参数的方法
+            method_env = "METHOD=";
+            method_env += method;
+            putenv((char *)method_env.c_str());
+#ifdef DEBUG
+            LOG(DEBUG, "Get Method, add method_env!"); //这里需要更改LOG：cout->cerr
+#endif
+
+            if (method == "GET")
+            {
+                query_string_env = "QUERY_STRING=";
+                query_string_env += query_string;
+                putenv((char *)query_string_env.c_str());
+#ifdef DEBUG
+                LOG(DEBUG, "Get Method, add query_string_env!"); //这里需要更改LOG：cout->cerr
+#endif
+            }
+
+            execl(bin.c_str(), bin.c_str(), nullptr);
+
+            //子进程不需要手动释放，结束进程自动释放
+
+            LOG(ERROR, "execl error!");
+            exit(1);
+        }
+        else if (pid < 0) //fork error
+        {
+            return NOT_FOUND;
+        }
+        else //parent
+        {
+            //关闭不需要的权限
+            close(input[1]);
+            close(output[0]);
+
+            if ("POST" == method) // POST 使用管道传给子进程
+            {
+                int size = body_text.size(); //总大小
+                const char *start = body_text.c_str();
+                int total = 0; //已写入的大小
+                int cnt = 0;   //本次写入的大小
+                while ((cnt = write(output[1], start + total, size - total)) > 0)
+                {
+                    total += cnt;
+                }
+            }
+            else // GET 使用环境变量传给子进程
+            {
+                ; //在子进程{}设置
+                //环境变量具有全局属性，则子进程是能够继承到父进程的环境变量的
+                //且环境变量不受execp程序替换的影响
+            }
+
+            waitpid(pid, nullptr, 0); //阻塞等
+
+            //释放资源
+            close(input[0]);
+            close(output[1]);
+        }
+
+        return OK;
     }
 
 private:
@@ -451,6 +571,7 @@ public:
     static void *HandlerRequest(void *psock)
     {
         LOG(INFO, "Hander Request begin ...");
+
         int sock = *(int *)psock;
         delete (int *)psock;
 
@@ -479,7 +600,7 @@ public:
         // Util::ReadLine(sock, line);
         // std::cout << line << std::endl;
 
-        // close(sock);
+        close(sock);
         LOG(INFO, "Hander Request end.");
         return nullptr;
     }

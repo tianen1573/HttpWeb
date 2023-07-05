@@ -40,7 +40,7 @@ public:
             {
                 continue;
             }
-
+            
             //多线程处理
             LOG(INFO, "Get a new link.");
             int * psock = new int(sock);
