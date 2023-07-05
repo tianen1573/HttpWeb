@@ -41,6 +41,24 @@ static std::string Code2Desc(int code)
     }
     return "";
 }
+static std::string Suffix2Desc(const std::string &suffix)
+{
+    static std::unordered_map<std::string, std::string> suffix_kv = {
+        {".html", "text/html"},
+        {".css", "text/css"},
+        {".js", "application/javascript"},
+        {".jpg", "application/x-jpg"},
+        {".xml", "application/xml"},
+    };
+
+    auto iter = suffix_kv.find(suffix);
+    if(iter != suffix_kv.end())
+    {
+        return iter->second;
+    }
+
+    return "text/html";
+}
 
 //Http请求
 class HttpRequest
@@ -62,7 +80,8 @@ public:
     std::unordered_map<std::string, std::string> header_kv; //报头kv
     int content_length;                                     // 正文长度
     std::string path;                                       // 路径
-    bool cgi;
+    bool cgi;                                               // 处理方式
+    std::string suffix;                                     //资源后缀
 
 public:
     HttpRequest()
@@ -128,6 +147,7 @@ public:
 
         struct stat st;   //写网页挺重要
         int src_size = 0; //资源文件大小
+        int l_found;      //资源后缀
 
         auto &code = _http_responce.status_code;
         code = OK; //默认为OK
@@ -209,6 +229,16 @@ public:
             LOG(WARNING, info);
             code = NOT_FOUND;
             goto END;
+        }
+        //处理后缀
+        l_found = _http_request.path.rfind(".");
+        if (l_found == std::string::npos)
+        {
+            _http_request.suffix = ".html";
+        }
+        else
+        {
+            _http_request.suffix = _http_request.path.substr(l_found);
         }
 
         //处理方式 1.cgi 2. no cgi
@@ -379,13 +409,23 @@ private:
 #endif
 
             // 构建响应报头
-            // todo...
+            std::string header_line;
+            header_line = "Content-Type: "; //正文类型
+            header_line += Suffix2Desc(_http_request.suffix);
+            header_line += LINE_END;
+            _http_responce.responce_header.push_back(header_line);
+            header_line = "Content-Length: "; //正文长度
+            header_line += std::to_string(src_size);
+            header_line += LINE_END;
+            _http_responce.responce_header.push_back(header_line);
+            
+            // 构建空行
+            // 已处理
 
-            // 构建空行 -- 已处理
-
-            //构建正文
-            //opne, sendfile -- 使用sendfile实现 数据不读取直接发送至网卡+sock， 没有中间商赚差价
+            // 建正文
+            // opne, sendfile -- 使用sendfile实现 数据不读取直接发送至网卡+sock， 没有中间商赚差价
             _http_responce.src_size = src_size; //正文大小
+
             return OK;
         }
         else
