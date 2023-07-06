@@ -22,9 +22,10 @@
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
-#define HOME_PAGE "index.html"
+#define PAGE_HOME "index.html"
 #define HTTP_VERSION "HTTP/1.0"
 #define LINE_END "\r\n"
+#define PAGE_404 "404.html"
 
 #define OK 200
 #define NOT_FOUND 404
@@ -139,8 +140,7 @@ public:
     {
         ParseHttpRequestLine();   // 解析请求行
         ParseHttpRequestHeader(); // 解析请求报头
-        RecvHttpRequestBody();   // 读取正文
-
+        RecvHttpRequestBody();    // 读取正文
     }
     void BulidHttpResponse() //构建响应
     {
@@ -197,7 +197,7 @@ public:
         //判断是否为wwwroot
         if ("wwwroot/" == _http_request.path)
         {
-            _http_request.path += HOME_PAGE;
+            _http_request.path += PAGE_HOME;
         }
 
         //2. 判断资源是否合法
@@ -212,7 +212,7 @@ public:
             {
                 //b. 是目录 -- 访问目录下的默认网页
                 _http_request.path += "/";
-                _http_request.path += HOME_PAGE;
+                _http_request.path += PAGE_HOME;
                 stat(_http_request.path.c_str(), &st); // 更新st -- 资源发生变化
             }
 
@@ -223,7 +223,7 @@ public:
                 //c. 可执行文件
                 _http_request.cgi = true;
             }
-            src_size = st.st_size; //文件大小
+            _http_responce.src_size = src_size; //正文大小
         }
         else
         {
@@ -249,12 +249,11 @@ public:
         if (_http_request.cgi)
         {
             // post/get+带参，可执行文件
-            code = ProcessCgi();
+            code = ProcessCgi(); //执行目标程序，将结果放到responce_body
         }
         else
         {
-            //简单返回 静态资源
-            code = ProcessNonCgi(src_size);
+            code = ProcessNonCgi(); //打开静态资源
         }
 
 #ifdef DEBUG
@@ -264,10 +263,8 @@ public:
 #endif
 
     END:
-        if (OK != code)
-        {
-            ;
-        }
+
+        BulidHttpResponseHelper(); //构建响应
     }
     void SendHttpResponse() //发送响应
     {
@@ -277,8 +274,22 @@ public:
             send(_sock, iter.c_str(), iter.size(), 0);
         }
         send(_sock, _http_responce.blank.c_str(), _http_responce.blank.size(), 0); //空行
-        sendfile(_sock, _http_responce.src_fd, nullptr, _http_responce.src_size);  //正文
-        close(_http_responce.src_fd);
+        if (_http_request.cgi)//cgi
+        {
+            auto &responce_body = _http_responce.responce_body;
+            int size = 0;
+            int  total = 0;
+            const char *start = responce_body.c_str();
+            while(total < responce_body.size() && (size = send(_sock, start + total, responce_body.size() - total, 0)) > 0)
+            {
+                total += size;
+            } 
+        }
+        else//no cgi
+        {
+            sendfile(_sock, _http_responce.src_fd, nullptr, _http_responce.src_size); 
+            close(_http_responce.src_fd);
+        }
     }
 
 private:
@@ -393,45 +404,12 @@ private:
 
         return false;
     }
-    int ProcessNonCgi(int src_size)
+    int ProcessNonCgi() //打开静态资源
     {
-        LOG(INFO, "Non Cgi...");
-
-        //预处理正文 -- 打开静态资源文件
+        //打开静态资源文件
         _http_responce.src_fd = open(_http_request.path.c_str(), O_RDONLY);
-
         if (_http_responce.src_fd >= 0)
         {
-            // 构建状态行
-            _http_responce.responce_line = HTTP_VERSION;
-            _http_responce.responce_line += " ";
-            _http_responce.responce_line += std::to_string(_http_responce.status_code);
-            _http_responce.responce_line += " ";
-            _http_responce.responce_line += Code2Desc(_http_responce.status_code);
-            _http_responce.responce_line += LINE_END;
-
-#ifdef DEBUG
-            LOG(DEBUG, _http_responce.responce_line);
-#endif
-
-            // 构建响应报头
-            std::string header_line;
-            header_line = "Content-Type: "; //正文类型
-            header_line += Suffix2Desc(_http_request.suffix);
-            header_line += LINE_END;
-            _http_responce.responce_header.push_back(header_line);
-            header_line = "Content-Length: "; //正文长度
-            header_line += std::to_string(src_size);
-            header_line += LINE_END;
-            _http_responce.responce_header.push_back(header_line);
-
-            // 构建空行
-            // 已处理
-
-            // 建正文
-            // opne, sendfile -- 使用sendfile实现 数据不读取直接发送至网卡+sock， 没有中间商赚差价
-            _http_responce.src_size = src_size; //正文大小
-
             return OK;
         }
         else
@@ -456,13 +434,18 @@ private:
         //此时子进程获取参数的方法不止一个，所以还需要获取 如何获取参数
         //环境变量
 
-        auto &query_string = _http_request.query_string; // GET
-        auto &body_text = _http_request.request_body;    // POST
-        auto &method = _http_request.method;
-        auto &bin = _http_request.path; //exe路径
+        int code = OK;
+
+        auto &query_string = _http_request.query_string;     // GET
+        auto &body_text = _http_request.request_body;        // POST
+        auto &method = _http_request.method;                 //请求方式
+        auto &bin = _http_request.path;                      //exe路径
+        auto &content_length = _http_request.content_length; //post正文长度
+        auto &respnce_body = _http_responce.responce_body;
 
         std::string query_string_env; //GET传参时需要的环境变量
-        std::string method_env;
+        std::string method_env;       //  请求方式环境变量
+        std::string content_length_env;
 
         //站在父进程角度创建两个匿名管道
         int input[2];
@@ -470,12 +453,14 @@ private:
         if (pipe(input) < 0) //创建失败
         {
             LOG(ERROR, "pipe input error!");
-            return NOT_FOUND;
+            code = NOT_FOUND;
+            return code;
         }
         if (pipe(output) < 0)
         {
             LOG(ERROR, "pipe output error!");
-            return NOT_FOUND;
+            code = NOT_FOUND;
+            return code;
         }
 
         pid_t pid = fork();
@@ -508,9 +493,20 @@ private:
                 query_string_env = "QUERY_STRING=";
                 query_string_env += query_string;
                 putenv((char *)query_string_env.c_str());
-#ifdef DEBUG
-                LOG(DEBUG, "Get Method, add query_string_env!"); //这里需要更改LOG：cout->cerr
-#endif
+
+                LOG(INFO, "Get Method: GET, add query_string_env ..."); //这里需要更改LOG：cout->cerr
+            }
+            else if ("POST" == method)
+            {
+                content_length_env = "CONTENT_LENGTH=";
+                content_length_env += std::to_string(content_length);
+                putenv((char *)content_length_env.c_str());
+
+                LOG(INFO, "Get Method: POST, add qcontent_length_env ..."); //这里需要更改LOG：cout->cerr
+            }
+            else
+            {
+                ;
             }
 
             execl(bin.c_str(), bin.c_str(), nullptr);
@@ -530,6 +526,7 @@ private:
             close(input[1]);
             close(output[0]);
 
+            //传参
             if ("POST" == method) // POST 使用管道传给子进程
             {
                 int size = body_text.size(); //总大小
@@ -548,14 +545,108 @@ private:
                 //且环境变量不受execp程序替换的影响
             }
 
-            waitpid(pid, nullptr, 0); //阻塞等
+            //读取cgi返回结果，构建正文
+            char ch = 0;
+            while (read(input[0], &ch, 1) > 0)
+            {
+                respnce_body.push_back(ch);
+            }
+
+            int status = 0;
+            pid_t ret = waitpid(pid, &status, 0); //阻塞等
+            if (ret == pid)
+            {
+                if (WIFEXITED(status)) //正常退出
+                {
+                    if (WEXITSTATUS(status) == 0) //且退出码为0
+                    {
+                        code = OK;
+                    }
+                    else
+                    {
+                        code = NOT_FOUND;
+                    }
+                }
+                else
+                {
+                    code = NOT_FOUND;
+                }
+            }
 
             //释放资源
             close(input[0]);
             close(output[1]);
         }
 
-        return OK;
+        return code;
+    }
+    void BulidOkResponce()
+    {
+        // 构建响应报头
+        std::string header_line;
+        header_line = "Content-Type: "; //正文类型
+        header_line += _http_request.suffix;
+        header_line += LINE_END;
+        _http_responce.responce_header.push_back(header_line);
+        header_line = "Content-Length: "; //正文长度
+        if (_http_request.cgi)
+        {
+            header_line += std::to_string(_http_responce.responce_body.size());
+        }
+        else
+        {
+            header_line += std::to_string(_http_responce.src_size);
+        }
+        header_line += LINE_END;
+        _http_responce.responce_header.push_back(header_line);
+    }
+    void HandlerError(std::string page) //404错误处理
+    {
+
+        _http_request.cgi = false;
+
+        //返回给用户对应的错误页面
+        _http_responce.src_fd = open(PAGE_404, O_RDONLY);
+        if (_http_responce.src_fd > 0)
+        {
+            struct stat st;
+            stat(page.c_str(), &st);
+            _http_responce.src_size = st.st_size;
+            // 构建响应报头
+            std::string header_line;
+            header_line = "Content-Type: text/html"; //正文类型
+            header_line += LINE_END;
+            _http_responce.responce_header.push_back(header_line);
+            header_line = "Content-Length: "; //正文长度
+            header_line += std::to_string(_http_responce.src_size);
+            header_line += LINE_END;
+            _http_responce.responce_header.push_back(header_line);
+        }
+    }
+    void BulidHttpResponseHelper() //错误处理
+    {
+        auto &code = _http_responce.status_code; //code
+
+        //构建状态行
+        auto &responce_line = _http_responce.responce_line;
+        responce_line += HTTP_VERSION;
+        responce_line += " ";
+        responce_line += std::to_string(code);
+        responce_line += " ";
+        responce_line += Code2Desc(code);
+        responce_line += LINE_END;
+
+        //构建响应正文，可能有响应报头
+        switch (code)
+        {
+        case OK:
+            BulidOkResponce();
+        case NOT_FOUND:
+            HandlerError(PAGE_404);
+            break;
+        default:
+            break;
+        }
     }
 
 private:
