@@ -39,13 +39,10 @@ public:
                 //2. '\n'
                 out.push_back(ch);
             }
-            else if (s == 0)
+            else // 对端关闭，recv失败
             {
+                return 0;
                 break;
-            }
-            else
-            {
-
             }
         }
 

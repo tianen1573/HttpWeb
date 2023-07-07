@@ -18,7 +18,7 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
-// #define DEBUG 1
+#define DEBUG 1
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
@@ -124,7 +124,7 @@ class EndPoint
 {
 public:
     EndPoint(int sock)
-        : _sock(sock)
+        : _sock(sock), _stop(false)
     {
     }
     ~EndPoint()
@@ -135,9 +135,12 @@ public:
 public:
     void RcvHttpRequest() //读取请求
     {
-        RecvHttpRequestLine();   // 读取请求行
-        RecvHttpRequestHeader(); // 读取请求报头
-        //读取正文 ：解析报头，判断是否需要读取正文
+        // 读取请求行
+        // 读取请求报头
+        // 读取正文 ：解析报头，判断是否需要读取正文
+
+        // 逻辑短路
+        (RecvHttpRequestLine() || RecvHttpRequestHeader()); // _stop为真 -- 读取出错
     }
     void ParseHttpRequest() // 解析请求
     {
@@ -270,6 +273,9 @@ public:
     }
     void SendHttpResponse() // 发送响应
     {
+        // 发送时，如果对方不读了，会产生sigpipe信号，使进程终止
+        // 所以，在httpserver对象初始化时，需要忽略掉sigpipe信号，避免http进程被终止
+
 #ifdef DEBUG
         LOG(DEBUG, std::to_string(_http_responce.status_code));
         if (_http_request.cgi)
@@ -307,21 +313,33 @@ public:
     }
 
 private:
-    void RecvHttpRequestLine() // 状态行
+    bool RecvHttpRequestLine() // 状态行
     {
-        Util::ReadLine(_sock, _http_request.request_line);
-        _http_request.request_line.resize(_http_request.request_line.size() - 1); //去除 行结尾标志
+        int cnt = 0;
+        if ((cnt = Util::ReadLine(_sock, _http_request.request_line)) > 0)
+        {
+            _http_request.request_line.resize(_http_request.request_line.size() - 1); //去除 行结尾标志
 #ifdef DEBUG
-        LOG(DEBUG, _http_request.request_line);
+            LOG(DEBUG, _http_request.request_line);
 #endif
+        }
+        else
+        {
+            _stop = true;
+        }
+        return _stop;
     }
-    void RecvHttpRequestHeader() // 请求报头
+    bool RecvHttpRequestHeader() // 请求报头
     {
         std::string line;
         while ("\n" != line) // 循环读取
         {
             line.clear(); // 清空
-            Util::ReadLine(_sock, line);
+            if (Util::ReadLine(_sock, line) <= 0)
+            {
+                _stop = true;
+                break;
+            }
             if ("\n" == line)
             {
                 _http_request.blank = line;
@@ -333,8 +351,9 @@ private:
             LOG(DEBUG, line);
 #endif
         }
+        return _stop;
     }
-    void RecvHttpRequestBody() // post 正文
+    bool RecvHttpRequestBody() // post 正文
     {
         if (IsNeedRecvHttpRequestBody())
         {
@@ -355,13 +374,10 @@ private:
                     body.push_back(ch);
                     --content_length;
                 }
-                else if (s == 0) // 对端关闭
-                {
-                    break;
-                }
-                else
+                else // 对端关闭或出错
                 {
                     LOG(ERROR, "recv error!");
+                    _stop = true;
                     break;
                 }
             }
@@ -369,6 +385,7 @@ private:
             LOG(DEBUG, "Request_Body: " + body);
 #endif
         }
+        return _stop;
     }
     void ParseHttpRequestLine() // 解析状态行
     {
@@ -678,10 +695,18 @@ private:
         }
     }
 
+public:
+    bool IsStop()
+    {
+        return _stop;
+    }
+
 private:
     int _sock;
     HttpRequest _http_request;
     HttpResponse _http_responce;
+
+    bool _stop;
 };
 
 //HttpServer 处理请求类
@@ -698,10 +723,26 @@ public:
         // 一次HTTP通信
         EndPoint *ep = new EndPoint(sock);
         ep->RcvHttpRequest();
-        ep->ParseHttpRequest();
-        ep->BulidHttpResponse();
-        ep->SendHttpResponse();
+        if (ep->IsStop() == false)
+        {
+            LOG(INFO, "Recv No Error, Begin Prase ...");
+            ep->ParseHttpRequest();
 
+            if (ep->IsStop() == false)
+            {
+                LOG(INFO, "Prase No Error, Begin Bulid and Send ...");
+                ep->BulidHttpResponse();
+                ep->SendHttpResponse();
+            }
+            else
+            {
+                LOG(WARNING, "Prase Error, Stop Bulid and Send!");
+            }
+        }
+        else
+        {
+            LOG(WARNING, "Recv Error, Stop Prase!");
+        }
         delete ep;
         close(sock);
         LOG(INFO, "Hander Request end ...");

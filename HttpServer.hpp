@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include <signal.h>
 #include <pthread.h>
 
 #include "TcpServer.hpp"
@@ -25,6 +26,7 @@ public:
 public:
     void InitServer()
     {
+        signal(SIGPIPE, SIG_IGN); // 忽略sigpipe信号， 避免http进程终止
         _tcp_server = TcpServer::GetInstance(_port);
     }
     void Loop()
