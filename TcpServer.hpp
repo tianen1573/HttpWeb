@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #include <pthread.h>
 
 #include <cstring>
@@ -54,6 +53,7 @@ public:
         if(_listen_sock >= 0)
         {
             close(_listen_sock);
+            delete svr;
         }
     }
 

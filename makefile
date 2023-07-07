@@ -32,5 +32,7 @@ output:
 
 # a=100&b=200
 
+# telnet 127.0.0.1 8081
+
 # get /test_cgi?a=100&b=200 HTTP/1.0
 

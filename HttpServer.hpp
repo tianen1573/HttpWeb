@@ -8,6 +8,8 @@
 #include "TcpServer.hpp"
 #include "Protocol.hpp"
 #include "Log.hpp"
+#include "Task.hpp"
+#include "ThreadPool.hpp"
 
 #define PORT 8081
 
@@ -16,7 +18,7 @@ class HttpServer
 
 public:
     HttpServer(int port = PORT)
-        : _port(port), _tcp_server(nullptr), stop(false)
+        : _port(port), _stop(false)
     {
     }
     ~HttpServer()
@@ -27,33 +29,32 @@ public:
     void InitServer()
     {
         signal(SIGPIPE, SIG_IGN); // 忽略sigpipe信号， 避免http进程终止
-        _tcp_server = TcpServer::GetInstance(_port);
     }
     void Loop()
     {
+        TcpServer *signal_tcp = TcpServer::GetInstance(_port);
+        ThreadPool *signal_tp = ThreadPool::GetInstance();
+
         LOG(INFO, "Loop begin ...");
-        int listen_sock = _tcp_server->GetSock();
-        while (!stop)
+        while (_stop == false)
         {
             struct sockaddr_in peer;
             socklen_t len = sizeof peer;// 发送方数据
-            int sock = accept(listen_sock, (struct sockaddr*)&peer, &len);
+            int sock = accept(signal_tcp->GetSock(), (struct sockaddr*)&peer, &len);
             if(sock < 0)
             {
                 continue;
             }
-            
-            //多线程处理
-            int * psock = new int(sock);
-            pthread_t tid;
-            pthread_create(&tid, nullptr, Entrance::HandlerRequest, psock);//创建线程
-            pthread_detach(tid);//线程分离
-
+            LOG(INFO, "Get a new link ...,and sock: " + std::to_string(sock));
+            Task task(sock);
+            signal_tp->PushTask(task);
         }
     }
 
 private:
     int _port;
-    TcpServer *_tcp_server;// 单例模式
-    bool stop;
+    bool _stop;
+
+    // TcpServer *_tcp_server;
+    // ThreadPool * _thread_pool;
 };

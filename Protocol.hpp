@@ -18,7 +18,7 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
-#define DEBUG 1
+// #define DEBUG 1
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
@@ -118,8 +118,7 @@ public:
     {
     }
 };
-
-//读取请求，分析请求，构建响应
+//Http处理
 class EndPoint
 {
 public:
@@ -315,8 +314,7 @@ public:
 private:
     bool RecvHttpRequestLine() // 状态行
     {
-        int cnt = 0;
-        if ((cnt = Util::ReadLine(_sock, _http_request.request_line)) > 0)
+        if (Util::ReadLine(_sock, _http_request.request_line) > 0)
         {
             _http_request.request_line.resize(_http_request.request_line.size() - 1); //去除 行结尾标志
 #ifdef DEBUG
@@ -709,16 +707,25 @@ private:
     bool _stop;
 };
 
-//HttpServer 处理请求类
-class Entrance
+//回调函数
+class CallBack
 {
 public:
-    static void *HandlerRequest(void *psock)
+    CallBack()
+    {
+    }
+    void operator()(int sock)
+    {
+        HandlerRequest(sock);
+    }
+    ~CallBack()
+    {
+    }
+
+public:
+    void HandlerRequest(int sock)
     {
         LOG(INFO, "Hander Request begin ...");
-        int sock = *(int *)psock;
-        delete (int *)psock;
-        LOG(INFO, "get a new link ... : " + std::to_string(sock));
 
         // 一次HTTP通信
         EndPoint *ep = new EndPoint(sock);
@@ -746,6 +753,5 @@ public:
         delete ep;
         close(sock);
         LOG(INFO, "Hander Request end ...");
-        return nullptr;
     }
 };
