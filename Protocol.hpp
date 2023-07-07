@@ -25,10 +25,15 @@
 #define PAGE_HOME "index.html"
 #define HTTP_VERSION "HTTP/1.0"
 #define LINE_END "\r\n"
+
+#define PAGE_400 "wwwroot/400.html"
 #define PAGE_404 "wwwroot/404.html"
+#define PAGE_500 "wwwroot/500.html"
 
 #define OK 200
+#define BAD_REQUEST 400
 #define NOT_FOUND 404
+#define SERVER_ERROR 500
 
 static std::string Code2Desc(int code)
 {
@@ -156,7 +161,7 @@ public:
         if ("GET" != _http_request.method && "POST" != _http_request.method) // 非法请求方式
         {
             LOG(WARNING, "method is not right!");
-            code = NOT_FOUND;
+            code = BAD_REQUEST;
             goto END;
         }
         if ("GET" == _http_request.method)
@@ -233,9 +238,7 @@ public:
         }
         else // 资源不存在
         {
-            std::string info = _http_request.path;
-            info += " Not Found!";
-            LOG(WARNING, info);
+            LOG(WARNING, _http_request.path + " Not Found!");
             code = NOT_FOUND;
             goto END;
         }
@@ -457,7 +460,7 @@ private:
         if (pipe(input) < 0) // 创建失败
         {
             LOG(ERROR, "pipe input error!");
-            code = NOT_FOUND;
+            code = SERVER_ERROR;
             return code;
         }
         if (pipe(output) < 0) // 创建失败
@@ -467,7 +470,7 @@ private:
             close(input[1]);
 
             LOG(ERROR, "pipe output error!");
-            code = NOT_FOUND;
+            code = SERVER_ERROR;
             return code;
         }
 
@@ -529,7 +532,7 @@ private:
         else if (pid < 0) // fork error
         {
             LOG(WARNING, "fork error!");
-            return NOT_FOUND;
+            return SERVER_ERROR;
         }
         else // parent
         {
@@ -574,12 +577,12 @@ private:
                     }
                     else
                     {
-                        code = NOT_FOUND;
+                        code = BAD_REQUEST;
                     }
                 }
                 else
                 {
-                    code = NOT_FOUND;
+                    code = SERVER_ERROR;
                 }
             }
 
@@ -661,8 +664,14 @@ private:
         case OK:
             BulidOkResponce();
             break;
+        case BAD_REQUEST:
+            HandlerError(PAGE_400);
+            break;
         case NOT_FOUND:
             HandlerError(PAGE_404);
+            break;
+        case SERVER_ERROR:
+            HandlerError(PAGE_500);
             break;
         default:
             break;
