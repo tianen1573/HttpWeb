@@ -116,7 +116,6 @@ public:
             }
             tp->PopTask(t);
             tp->UnLock();
-
             t.ProcessOn();
         }
     }

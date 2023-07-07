@@ -79,8 +79,15 @@ int main()
         CutQuery(str2, "=", name2, value2);
 
         //fd: 1
-        std::cout << name1 << " : " << value1 << std::endl;
-        std::cout << name2 << " : " << value2 << std::endl;
+        std::cout << "<html>";
+        std::cout << "<head><meta charset=\"utf-8\"></head>";
+        std::cout << "<body>";
+        std::cout << "<h3>" << name1 << " : " << value1 << "</h3>";
+        std::cout << "<h3>" << name2 << " : " << value2 << "</h3>";
+        std::cout << "</body>";
+        std::cout << "</html>";
+
+
         //fd: 2
         std::cerr << name1 << " : " << value1 << std::endl;
         std::cerr << name2 << " : " << value2 << std::endl;

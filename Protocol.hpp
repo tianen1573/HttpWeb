@@ -18,7 +18,7 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
-// #define DEBUG 1
+#define DEBUG 1
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
@@ -361,7 +361,7 @@ private:
             int content_length = _http_request.content_length;
             auto &body = _http_request.request_body;
 #ifdef DEBUG
-            LOG(DEBUG, "Content-Length: " + content_length);
+            LOG(DEBUG, "Content-Length: " + std::to_string(content_length));
 #endif
             char ch = 0;
             while (content_length)

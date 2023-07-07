@@ -5,7 +5,6 @@
 
 class Task
 {
-
 public:
     Task()
     {
