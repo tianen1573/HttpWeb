@@ -18,14 +18,14 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
-// #define DEBUG 1
+#define DEBUG 1
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"
 #define PAGE_HOME "index.html"
 #define HTTP_VERSION "HTTP/1.0"
 #define LINE_END "\r\n"
-#define PAGE_404 "404.html"
+#define PAGE_404 "wwwroot/404.html"
 
 #define OK 200
 #define NOT_FOUND 404
@@ -146,7 +146,7 @@ public:
     {
         //判断请求方式
         //判断资源路径合法性
-        //判断处理方式
+        //调用处理方式
 
         struct stat st;   //写网页挺重要
         int src_size = 0; //资源文件大小
@@ -176,9 +176,20 @@ public:
                 //不带参
                 _http_request.path = _http_request.uri;
             }
+#ifdef DEBUG
+            LOG(DEBUG, "GET, and ...");
+            LOG(DEBUG, _http_request.uri);
+            LOG(DEBUG, _http_request.path);
+            LOG(DEBUG, _http_request.query_string);
+#endif
         }
         else if ("POST" == _http_request.method)
         {
+#ifdef DEBUG
+            LOG(DEBUG, "POST, and ...");
+            LOG(DEBUG, _http_request.uri);
+            LOG(DEBUG, _http_request.path);
+#endif
             _http_request.path = _http_request.uri;
             _http_request.cgi = true;
         }
@@ -224,6 +235,9 @@ public:
                 _http_request.cgi = true;
             }
             _http_responce.src_size = src_size; //正文大小
+#ifdef DEBUG
+            LOG(DEBUG, _http_request.path);
+#endif
         }
         else
         {
@@ -244,6 +258,9 @@ public:
         {
             _http_request.suffix = _http_request.path.substr(l_found);
         }
+#ifdef DEBUG
+        LOG(DEBUG, _http_request.suffix);
+#endif
 
         //处理方式 1.cgi 2. no cgi
         if (_http_request.cgi)
@@ -256,39 +273,40 @@ public:
             code = ProcessNonCgi(); //打开静态资源
         }
 
-#ifdef DEBUG
-        LOG(DEBUG, _http_request.method);
-        LOG(DEBUG, _http_request.path);
-        LOG(DEBUG, _http_request.version);
-#endif
-
     END:
 
         BulidHttpResponseHelper(); //构建响应
     }
     void SendHttpResponse() //发送响应
     {
+        std::cout << _http_responce.src_fd << std::endl;
+        std::cout << _http_responce.status_code << std::endl;
         send(_sock, _http_responce.responce_line.c_str(), _http_responce.responce_line.size(), 0); //状态行
         for (auto iter : _http_responce.responce_header)                                           //报头
         {
             send(_sock, iter.c_str(), iter.size(), 0);
         }
         send(_sock, _http_responce.blank.c_str(), _http_responce.blank.size(), 0); //空行
-        if (_http_request.cgi)//cgi
+        if (_http_request.cgi)                                                     //cgi
         {
             auto &responce_body = _http_responce.responce_body;
             int size = 0;
-            int  total = 0;
+            int total = 0;
             const char *start = responce_body.c_str();
-            while(total < responce_body.size() && (size = send(_sock, start + total, responce_body.size() - total, 0)) > 0)
+            while (total < responce_body.size() && (size = send(_sock, start + total, responce_body.size() - total, 0)) > 0)
             {
                 total += size;
-            } 
+            }
         }
-        else//no cgi
+        else //no cgi
         {
-            sendfile(_sock, _http_responce.src_fd, nullptr, _http_responce.src_size); 
+            LOG(DEBUG, "sendfile ... begin");
+            sendfile(_sock, _http_responce.src_fd, nullptr, _http_responce.src_size);
+            std::cout << _sock << std::endl;
+            std::cout << _http_responce.src_fd<< std::endl;
             close(_http_responce.src_fd);
+            LOG(DEBUG, "sendfile ... end");
+
         }
     }
 
@@ -330,8 +348,14 @@ private:
 
         if (IsNeedRecvHttpRequestBody())
         {
+#ifdef DEBUG
+            LOG(DEBUG, "IsNeedRecvHttpRequestBody is yes...");
+#endif
             int content_length = _http_request.content_length;
             auto &body = _http_request.request_body;
+#ifdef DEBUG
+            LOG(DEBUG, "Content-Length: " + content_length);
+#endif
 
             char ch = 0;
             while (content_length)
@@ -352,6 +376,10 @@ private:
                     break;
                 }
             }
+
+#ifdef DEBUG
+            LOG(DEBUG, "Request_Body: " + body);
+#endif
         }
     }
 
@@ -406,15 +434,22 @@ private:
     }
     int ProcessNonCgi() //打开静态资源
     {
+
+        LOG(INFO, "No Cgi...");
+
         //打开静态资源文件
         _http_responce.src_fd = open(_http_request.path.c_str(), O_RDONLY);
         if (_http_responce.src_fd >= 0)
         {
+            struct stat st;
+            stat(_http_request.path.c_str(), &st);
+            _http_responce.src_size = st.st_size;
+            LOG(INFO, _http_request.path + " is open...");
             return OK;
         }
         else
         {
-            LOG(INFO, "scr_file open error!");
+            LOG(WARNING, "scr_file open error!");
             return NOT_FOUND;
         }
     }
@@ -441,7 +476,7 @@ private:
         auto &method = _http_request.method;                 //请求方式
         auto &bin = _http_request.path;                      //exe路径
         auto &content_length = _http_request.content_length; //post正文长度
-        auto &respnce_body = _http_responce.responce_body;
+        auto &responce_body = _http_responce.responce_body;
 
         std::string query_string_env; //GET传参时需要的环境变量
         std::string method_env;       //  请求方式环境变量
@@ -493,16 +528,18 @@ private:
                 query_string_env = "QUERY_STRING=";
                 query_string_env += query_string;
                 putenv((char *)query_string_env.c_str());
-
-                LOG(INFO, "Get Method: GET, add query_string_env ..."); //这里需要更改LOG：cout->cerr
+#ifdef DEBUG
+                LOG(DEBUG, "Get Method: GET, add query_string_env ..."); //这里需要更改LOG：cout->cerr
+#endif
             }
             else if ("POST" == method)
             {
                 content_length_env = "CONTENT_LENGTH=";
                 content_length_env += std::to_string(content_length);
                 putenv((char *)content_length_env.c_str());
-
-                LOG(INFO, "Get Method: POST, add qcontent_length_env ..."); //这里需要更改LOG：cout->cerr
+#ifdef DEBUG
+                LOG(DEBUG, "Get Method: POST, add qcontent_length_env ..."); //这里需要更改LOG：cout->cerr
+#endif
             }
             else
             {
@@ -518,6 +555,7 @@ private:
         }
         else if (pid < 0) //fork error
         {
+            LOG(WARNING, "fork error!");
             return NOT_FOUND;
         }
         else //parent
@@ -549,8 +587,9 @@ private:
             char ch = 0;
             while (read(input[0], &ch, 1) > 0)
             {
-                respnce_body.push_back(ch);
+                responce_body.push_back(ch);
             }
+            
 
             int status = 0;
             pid_t ret = waitpid(pid, &status, 0); //阻塞等
@@ -582,10 +621,14 @@ private:
     }
     void BulidOkResponce()
     {
+
+        LOG(DEBUG, "BulidOkResponce");
+        std::cout << _http_responce.src_fd << std::endl;
+        std::cout << _http_responce.status_code << std::endl;
         // 构建响应报头
         std::string header_line;
         header_line = "Content-Type: "; //正文类型
-        header_line += _http_request.suffix;
+        header_line += Suffix2Desc(_http_request.suffix);
         header_line += LINE_END;
         _http_responce.responce_header.push_back(header_line);
         header_line = "Content-Length: "; //正文长度
@@ -604,10 +647,10 @@ private:
     {
 
         _http_request.cgi = false;
-
+        _http_request.suffix = ".html";
         //返回给用户对应的错误页面
-        _http_responce.src_fd = open(PAGE_404, O_RDONLY);
-        if (_http_responce.src_fd > 0)
+        _http_responce.src_fd = open(page.c_str(), O_RDONLY);
+        if (_http_responce.src_fd >= 0)
         {
             struct stat st;
             stat(page.c_str(), &st);
@@ -623,10 +666,10 @@ private:
             _http_responce.responce_header.push_back(header_line);
         }
     }
-    void BulidHttpResponseHelper() //错误处理
+    void BulidHttpResponseHelper() //构建处理
     {
         auto &code = _http_responce.status_code; //code
-
+        LOG(DEBUG, "BulidHttpResponseHelper");
         //构建状态行
         auto &responce_line = _http_responce.responce_line;
         responce_line += HTTP_VERSION;
@@ -637,16 +680,21 @@ private:
         responce_line += LINE_END;
 
         //构建响应正文，可能有响应报头
+        std::cout << _http_responce.src_fd << std::endl;
+        std::cout << code << std::endl;
         switch (code)
         {
         case OK:
             BulidOkResponce();
+            break;
         case NOT_FOUND:
             HandlerError(PAGE_404);
             break;
         default:
             break;
         }
+        std::cout << _http_responce.src_fd << std::endl;
+        std::cout << code << std::endl;
     }
 
 private:
@@ -668,14 +716,6 @@ public:
 
         std::cout << "get a new link ... : " << sock << std::endl;
 
-#ifdef DEBUG
-        char buffer[4096];
-        recv(sock, buffer, sizeof(buffer), 0);
-        std::cout << "----------------------begin--------------------------" << std::endl;
-        std::cout << buffer << std::endl;
-        std::cout << "----------------------end--------------------------\n"
-                  << std::endl;
-#else
         //一次HTTP通信
         EndPoint *ep = new EndPoint(sock);
         ep->RcvHttpRequest();
@@ -684,7 +724,6 @@ public:
         ep->SendHttpResponse();
 
         delete ep;
-#endif
 
         // 历史测试
         // std::string line;
