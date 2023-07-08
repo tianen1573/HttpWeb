@@ -26,8 +26,8 @@ private:
         , _listen_sock(-1)
     {
     }
-    TcpServer(const TcpServer & s){}
-    TcpServer operator=(const TcpServer & s){}
+    TcpServer(const TcpServer & s) = delete;
+    TcpServer operator=(const TcpServer & s) = delete;
 
 public:
     static TcpServer* GetInstance(int port)//单例模式

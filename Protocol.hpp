@@ -18,7 +18,7 @@
 #include "Util.hpp"
 #include "Log.hpp"
 
-#define DEBUG 1
+// #define DEBUG 1
 
 #define SEP ": "
 #define WEB_ROOT "wwwroot"

@@ -21,8 +21,8 @@ private:
         pthread_mutex_init(&_lock, nullptr);
         pthread_cond_init(&_cond, nullptr);
     }
-    ThreadPool(const ThreadPool &tp){};
-    ThreadPool operator=(const ThreadPool &tp){};
+    ThreadPool(const ThreadPool &tp) = delete;
+    ThreadPool operator=(const ThreadPool &tp) = delete;
 
 public:
     static ThreadPool* GetInstance()
@@ -62,6 +62,7 @@ public:
             
         }
         LOG(INFO, "ThreadPool Create Success ...");
+        return true;
     }
     void PushTask(const Task task)
     {

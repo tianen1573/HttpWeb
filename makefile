@@ -1,30 +1,35 @@
 bin=httpserver
-cgi=test_cgi
 cc=g++
 LD_FLAGS=-std=c++11 -lpthread
 curr=$(shell pwd)
 src=main.cc
 
-ALL:$(bin) $(cgi)
 .PHONY:ALL
+ALL:$(bin) CGI output
 
 $(bin):$(src)
 	$(cc) -o $@ $^ $(LD_FLAGS)
-$(cgi):cgi/test_cgi.cc
-	$(cc) -o $@ $^ -std=c++11
-
-.PHONY : clean
-clean:
-	rm -rf $(bin) $(cgi)
-	rm -rf output
+CGI:
+	cd $(curr)/cgi;\
+	make;\
+	cd -;
 
 .PHONY:output
 output:
 	mkdir -p output
 	cp $(bin) output
 	cp -rf wwwroot output
-	cp $(cgi) output/wwwroot
+	cp ./cgi/test_cgi output/wwwroot
+	cp ./cgi/shell_cgi.sh output/wwwroot
+	cp ./cgi/mysql_cgi output/wwwroot
 
+.PHONY : clean
+clean:
+	rm -rf $(bin)
+	rm -rf output
+	cd $(curr)/cgi;\
+	make clean;\
+	cd -;
 
 # POST /test_cgi HTTP/1.0
 # Content-Length: 11
