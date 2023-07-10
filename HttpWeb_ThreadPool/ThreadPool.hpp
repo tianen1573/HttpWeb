@@ -73,6 +73,8 @@ public:
     }
     void PopTask(Task &task)
     {
+        // 调用PopTask，我们保证临界区存在资源，并且是在加锁条件下调用的
+        // 所以，在PopTask函数里不需要线程安全控制
         task = _task_queue.front();
         _task_queue.pop();
     }
@@ -105,13 +107,14 @@ public:
     static void *ThreadRoutine(void *args)
     {
         // 必须是静态的， 因为非静态成员函数会有一个this指针形参， 无法作为回调函数
+        // 传参获取的线程回调函数并不需要是static
         ThreadPool *tp = (ThreadPool *)args;
 
         while(true)
         {
             Task t;
             tp->Lock();
-            while(tp->TaskQueueEmpty()) //while保证健壮性，避免伪唤醒
+            while(tp->TaskQueueEmpty()) // while保证健壮性，避免伪唤醒
             {
                 tp->ThreadWait();
             }

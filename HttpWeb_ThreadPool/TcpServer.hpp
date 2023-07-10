@@ -60,9 +60,9 @@ public:
 public:
     void InitServer()
     {
-        Socket();//创建监听套接字
-        Bind();//绑定套接字
-        Listen();//监听
+        Socket(); // 创建监听套接字
+        Bind(); // 绑定套接字
+        Listen(); // 监听
         LOG(INFO, "init ... success.");
     }
     void Socket()
@@ -115,6 +115,7 @@ private:
     int _port;
     int _listen_sock;
     // string _ip; // 服务端不需要显示绑定IP， 绑定INADDR_ANY，可接受所有网卡的请求，并且云服务器不能绑定公网IP
+    // bool _stop; // 如果TcpServer初始化失败了，可以交给HttpServer进行处理(重新初始化 或者 重启服务器)
 
     static TcpServer* svr;// 懒汉单例模式
 };

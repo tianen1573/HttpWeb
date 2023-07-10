@@ -257,7 +257,7 @@ public:
 #ifdef DEBUG
         LOG(DEBUG, _http_request.suffix);
 #endif
-        //3. 处理方式 1.cgi 2. no cgi
+        //3. 处理方式 1.cgi 2. non cgi
         if (_http_request.cgi) // post/get+带参，可执行文件
         {
             code = ProcessCgi(); //执行目标程序，将结果放到responce_body
@@ -268,9 +268,9 @@ public:
         }
 
     END:                           // 根据状态码统一处理响应
-        BulidHttpResponseHelper(); // 构建响应
+        BuildHttpResponseHelper(); // 构建响应
     }
-    void SendHttpResponse() // 发送响应
+    void SendHttpResponse()// 发送响应
     {
         // 发送时，如果对方不读了，会产生sigpipe信号，使进程终止
         // 所以，在httpserver对象初始化时，需要忽略掉sigpipe信号，避免http进程被终止
@@ -425,6 +425,7 @@ private:
         }
         return false;
     }
+    
     int ProcessNonCgi() // No cgi ： 打开静态资源
     {
         LOG(INFO, "No Cgi...");
@@ -450,10 +451,10 @@ private:
         LOG(INFO, "Cgi...");
         // 1. 如何执行指定进程
         // 使用进程替换，进行CGI机制
-        // 当前线程是httpserver线程下的子进程，若直接在该线程下替换，则整个进程都会发生进程替换，服务器就会终止
+        // 当前线程是httpserver线程下的子线程，若直接在该线程下替换，则整个进程都会发生进程替换，服务器就会终止
         // 所以，需要先创建一个子进程，使子进程进行进程替换
         // 2. 父子进程如何通信， 即子进程如何获取参数，父进程如何获取结果
-        // 匿名管道，两套
+        // a. 匿名管道，两套 b. 环境变量
         // 3. 子进程获取参数 -- a.匿名管道 b.环境变量
         // 此时子进程获取参数的方法不止一个，所以还需要获取 如何获取参数？ --> 环境变量
 
@@ -607,7 +608,8 @@ private:
         }
         return code;
     }
-    void BulidOkResponce()
+    
+    void BuildOkResponce()
     {
 #ifdef DEBUG
         LOG(DEBUG, "BulidOkResponce");
@@ -661,7 +663,7 @@ private:
             LOG(WARNING, "open error!");
         }
     }
-    void BulidHttpResponseHelper() // 构建处理
+    void BuildHttpResponseHelper() // 构建处理
     {
         auto &code = _http_responce.status_code; // code
         // 构建状态行
@@ -677,7 +679,7 @@ private:
         switch (code)
         {
         case OK:
-            BulidOkResponce();
+            BuildOkResponce();
             break;
         case BAD_REQUEST:
             HandlerError(PAGE_400);
@@ -728,18 +730,18 @@ public:
         LOG(INFO, "Hander Request begin ...");
 
         // 一次HTTP通信
-        EndPoint *ep = new EndPoint(sock);
-        ep->RcvHttpRequest();
-        if (ep->IsStop() == false)
+        _ep= new EndPoint(sock);
+        _ep->RcvHttpRequest();
+        if (_ep->IsStop() == false) // 只有成功读取Http请求的全部内容，才执行剩下任务
         {
             LOG(INFO, "Recv No Error, Begin Prase ...");
-            ep->ParseHttpRequest();
+            _ep->ParseHttpRequest(); 
 
-            if (ep->IsStop() == false)
+            if (_ep->IsStop() == false) // 只有成功读取Http请求的全部内容，才执行剩下任务
             {
                 LOG(INFO, "Prase No Error, Begin Bulid and Send ...");
-                ep->BulidHttpResponse();
-                ep->SendHttpResponse();
+                _ep->BulidHttpResponse();
+                _ep->SendHttpResponse();
             }
             else
             {
@@ -750,8 +752,11 @@ public:
         {
             LOG(WARNING, "Recv Error, Stop Prase!");
         }
-        delete ep;
+        delete _ep;
         close(sock);
         LOG(INFO, "Hander Request end ...");
     }
+
+private:
+    EndPoint *_ep;
 };
