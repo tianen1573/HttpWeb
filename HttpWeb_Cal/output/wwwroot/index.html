@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>网页版计算器</title>
+		<link href="./static/css/cal.css" rel="stylesheet" type="text/css" />
+		<script type="text/javascript" src="./static/js/cal.js"></script>
+	</head>
+	<body>
+		
+		<div id="calculator">
+			<div id="head"><h3>网页版简单计算器</h3></div>
+
+			<form action="/cal_cgi", method="POST">
+
+			<div id="show" align="center">
+				<input type="text" name="CalString" id="text" >
+			</div>
+
+			<div id="cuttom">
+				<table align="center">
+					<tr>
+						<td><input type="button" value="7" onclick="display(7)"></td>
+						<td><input type="button" value="8" onclick="display(8)"></td>
+						<td><input type="button" value="9" onclick="display(9)"></td>
+						<td><input type="button" value="+" onclick="display('+')"></td>
+						<td><input type="button" value="-" onclick="display('-')"></td>
+					</tr>
+					<tr>
+						<td><input type="button" value="4" onclick="display(4)"></td>
+						<td><input type="button" value="5" onclick="display(5)"></td>
+						<td><input type="button" value="6" onclick="display(6)"></td>
+						<td><input type="button" value="*" onclick="display('*')"></td>
+						<td><input type="button" value="/" onclick="display('/')"></td>
+					</tr>
+					<tr>
+						<td><input type="button" value="1" onclick="display(1)"></td>
+						<td><input type="button" value="2" onclick="display(2)"></td>
+						<td><input type="button" value="3" onclick="display(3)"></td>
+						<td><input type="button" value="(" onclick="display('(')"></td>
+						<td><input type="button" value=")" onclick="display(')')"></td>
+					</tr>
+					<tr>
+						<td><input type="button" value="." onclick="display('.')"></td>
+						<td><input type="button" value="0" onclick="display(0)"></td>
+						<td><input type="button" value="←" onclick="back()"></td>
+						<td><input type="button" value="c" onclick="reset()"></td>
+						<td><input type="submit" value="计算"></td>
+					</tr>
+				</table>
+			</div>
+			</form>
+		</div>
+	</body>
+</html>

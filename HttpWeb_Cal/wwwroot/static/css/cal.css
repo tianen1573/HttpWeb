@@ -1,0 +1,5 @@
+body{background:#CDC673;}
+h3{font-family:微软雅黑;font-size: 35px;text-align: center;}
+#show input{width:511px;height:60px;font-size:30px;}
+#cuttom input{width: 100px;height: 70px;font-size: 28px;}
+#cuttom input:hover{background: lightgray;}
