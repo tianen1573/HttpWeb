@@ -36,21 +36,25 @@ int main()
                     cal.CalExpr();
                     if (cal.IsZero())
                     {
-                        reslut += " Divide by zero in expression";
+                        reslut += "<br>Divide by zero in expression!";
+                    }
+                    else if(cal.IsBomb())
+                    {
+                        reslut += "<br>Sorry, the result is too large or too low!";
                     }
                     else
                     {
-                        reslut += " = " + std::to_string(cal.Reslut());
+                        reslut += "<br>reslut: " + std::to_string(cal.Reslut());
                     }
                 }
                 else
                 {
-                    reslut += " is wrong expression!";
+                    reslut += "<br>Wrong Expression!";
                 }
             }
             else
             {
-                reslut += " has word errors!";
+                reslut += "<br>Has Word Errors!";
             }
             // reslut = UrlEncode(reslut);
 

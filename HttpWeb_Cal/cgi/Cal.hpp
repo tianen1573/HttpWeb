@@ -6,6 +6,8 @@
 #include <vector>
 #include <stack>
 #include <utility>
+#include <limits>
+#include <float.h>
 
 class Cal
 {
@@ -13,10 +15,11 @@ private:
     std::string _cal_request;
     double _cal_reslut;
     std::vector<std::pair<std::string, int>> _word;
-    int idx; // 单词的下标
-    int sym; // 单词的性质
-    int err; // 语法分析错误码
+    int idx;    // 单词的下标
+    int sym;    // 单词的性质
+    int err;    // 语法分析错误码
     bool _zero; // 除零错误
+    bool _bomb; // 数值爆炸 -- 也可以添加大数运算功能
 private:
     // -----------------------词法分析-----------------------
     bool word_analysis(std::vector<std::pair<std::string, int>> &word, const std::string expr)
@@ -177,7 +180,7 @@ private:
     std::vector<std::pair<std::string, int>> getPostfix(const std::vector<std::pair<std::string, int>> &expr)
     {
         std::vector<std::pair<std::string, int>> output; // 输出
-        std::stack<std::pair<std::string, int>> stk;       // 操作符栈
+        std::stack<std::pair<std::string, int>> stk;     // 操作符栈
         for (int i = 0; i < expr.size(); ++i)
         {
             std::pair<std::string, int> p = expr[i];
@@ -244,32 +247,77 @@ private:
             {
             case 1:
                 popTwoNumbers(stk, first, second);
-                stk.push(second + first);
-                break;
+                if ((second + first) - second == first)
+                {
+                    stk.push(second + first);
+                    break;
+                }
+                else
+                {
+                    _bomb = true;
+                    stk.push(0); // 避免stk里无数据
+                    goto END;
+                }
             case 2:
                 popTwoNumbers(stk, first, second);
-                stk.push(second - first);
-                break;
+                if ((second - first) + first == second)
+                {
+                    stk.push(second - first);
+                    break;
+                }
+                else
+                {
+                    _bomb = true;
+                    stk.push(0); // 避免stk里无数据
+                    goto END;
+                }
             case 3:
                 popTwoNumbers(stk, first, second);
-                stk.push(second * first);
-                break;
+                if ((second * first) / first == second)
+                {
+                    stk.push(second * first);
+                    break;
+                }
+                else
+                {
+                    _bomb = true;
+                    stk.push(0); // 避免stk里无数据
+                    goto END;
+                }
             case 4:
                 popTwoNumbers(stk, first, second);
-                if(first == 0)
+                if (first == 0)
                 {
                     _zero = true;
                     stk.push(0); // 避免stk里无数据
                     goto END;
                 }
-                stk.push(second / first);
-                break;
+                if ((second / first) * first == second)
+                {
+                    stk.push(second / first);
+                    break;
+                }
+                else
+                {
+                    _bomb = true;
+                    stk.push(0); // 避免stk里无数据
+                    goto END;
+                }
             default:
-                stk.push(stringToDouble(p.first));
-                break;
+                if (std::to_string(stringToDouble(p.first)) == p.first)
+                {
+                    stk.push(stringToDouble(p.first));
+                    break;
+                }
+                else
+                {
+                    _bomb = true;
+                    stk.push(0); // 避免stk里无数据
+                    goto END;
+                }
             }
         }
-END:
+    END:
         double result = stk.top();
         stk.pop();
         return result;
@@ -277,7 +325,7 @@ END:
 
 public:
     Cal(std::string &req)
-        : _cal_request(req), idx(0), err(0), _zero(false)
+        : _cal_request(req), idx(0), err(0), _zero(false), _bomb(false)
     {
     }
 
@@ -297,6 +345,10 @@ public:
         _cal_reslut = expCalculate(getPostfix(_word));
     }
 
+    bool IsBomb()
+    {
+        return _bomb;
+    }
     bool IsZero()
     {
         return _zero;

@@ -1,1 +1,28 @@
-404 : NOT_FOUND
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>404 Not Found</title>
+    <script type="text/javascript" src="./static/js/404.js"></script>
+</head>
+
+<body>
+
+    <h1>Not Found</h1>
+    <p id="getUrlPath"></p>
+    <script>
+        //获取url路径
+        function getUrlPath() {
+            var pathName = window.document.location.pathname;
+            return "The requested URL <b>" + (pathName) + "</b> was not found on this server.";
+        }
+        document.getElementById("getUrlPath").innerHTML = getUrlPath();
+    </script>
+    <p><a href="https://github.com/tianen1573">You can access my GitHub</a></p>
+    <hr>
+    <address>HttpWeb Server at 123.249.100.5 Port 8081</address>
+
+</body>
+
+</html>
