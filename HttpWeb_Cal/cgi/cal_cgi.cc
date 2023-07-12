@@ -38,7 +38,7 @@ int main()
                     {
                         reslut += "<br>Divide by zero in expression!";
                     }
-                    else if(cal.IsBomb())
+                    else if (cal.IsBomb())
                     {
                         reslut += "<br>Sorry, the result is too large or too low!";
                     }
@@ -59,12 +59,13 @@ int main()
             // reslut = UrlEncode(reslut);
 
             //fd: 1
-            std::cout << "<html>";
-            std::cout << "<head><meta charset=\"utf-8\"></head>";
-            std::cout << "<body>";
-            std::cout << "<h3>" << reslut << "</h3>";
-            std::cout << "</body>";
-            std::cout << "</html>";
+            std::cout << "<!DOCTYPE html><html><head><title>200 Reslut</title><style type =\"text/css\"> \
+                body{background-color:#fff;color:#666;text-align:center;font-family:arial,sans-serif;} \
+                div.dialog{width:25em;padding:0 4em;margin:4em auto 0 auto;border:1px solid #ccc;border-right-color:#999;border-bottom-color:#999;} \
+                h1{font-size:100%;color:#f00;line-height:1.5em;} \
+                </style></head><body><div class=\"dialog\">";
+            std::cout << "<h1>" + reslut + "</h1>";
+            std::cout << "</div><p><a href = \"https://github.com/tianen1573\"> You can access my GitHub</a></p><hr></body> ";
         }
     }
     else

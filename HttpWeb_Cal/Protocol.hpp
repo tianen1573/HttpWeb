@@ -41,6 +41,8 @@ static std::string Code2Desc(int code)
     {
     case 200:
         return "OK";
+    case 400:
+        return "Bad Request";
     case 404:
         return "Not Found";
     default:
@@ -72,8 +74,8 @@ class HttpRequest
 {
 public:
     // 请求
-    std::string request_line;                //状态行
-    std::vector<std::string> request_header; //报头
+    std::string request_line;                // 状态行
+    std::vector<std::string> request_header; // 报头
     std::string blank;                       // 空行
     std::string request_body;                // POST正文
     std::string query_string;                // GET正文
@@ -83,8 +85,8 @@ public:
     std::string uri;                                        // 请求资源 path?args
     std::string version;                                    // HTTP协议版本
     std::unordered_map<std::string, std::string> header_kv; // 报头kv
-    int content_length;                                     // 正文长度
-    std::string path;                                       // 资源路径 ： 处理后
+    int content_length;                                     // post正文长度
+    std::string path;                                       // 资源路径 -- 处理后
     bool cgi;                                               // 处理方式
     std::string suffix;                                     // 资源后缀
 
@@ -106,7 +108,7 @@ public:
     std::string blank;                        // 空行
     std::string responce_body;                // 正文
 
-    int status_code; // 状态码
+    int status_code; // 响应状态码
     int src_fd;      // 静态资源fd
     int src_size;    // 静态资源大小
 public:
@@ -136,7 +138,7 @@ public:
     {
         // 读取请求行
         // 读取请求报头
-        // 读取正文 ：解析报头，判断是否需要读取正文
+        // 读取正文 -- 解析报后头判断是否需要读取正文
 
         // 逻辑短路
         (RecvHttpRequestLine() || RecvHttpRequestHeader()); // _stop为真 -- 读取出错
@@ -149,7 +151,7 @@ public:
     }
     void BulidHttpResponse() //构建响应
     {
-        // 1. 判断请求方式
+        // 1. 判断请求方式， 处理原始数据
         // 2. 处理资源路径
         // 3. 处理请求 -- cgi/no cgi
         // 4. 构建响应
