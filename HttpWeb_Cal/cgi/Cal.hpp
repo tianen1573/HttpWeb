@@ -247,7 +247,7 @@ private:
             {
             case 1:
                 popTwoNumbers(stk, first, second);
-                if ((second + first) - second == first)
+                if ((second + first) - first == second)
                 {
                     stk.push(second + first);
                     break;
@@ -304,7 +304,7 @@ private:
                     goto END;
                 }
             default:
-                if (std::to_string(stringToDouble(p.first)) == p.first)
+                if (stringToDouble((std::to_string(stringToDouble(p.first)))) == stringToDouble(p.first))
                 {
                     stk.push(stringToDouble(p.first));
                     break;
